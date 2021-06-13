@@ -7,9 +7,11 @@ import {
   InputType,
   Mutation,
   ObjectType,
+  Query,
   Resolver,
 } from "type-graphql";
 import argon2 from "argon2";
+import { EntityManager } from "@mikro-orm/postgresql";
 
 @InputType()
 class UsernamePasswordInput {
@@ -38,8 +40,17 @@ class UserResponse {
 
 @Resolver()
 export class UserResolver {
+  @Query(() => User, { nullable: true })
+  async me(@Ctx() ctx: MyContext) {
+    //you are not logged in
+    if (!ctx.req.session.userId) {
+      return null;
+    }
 
-  
+    const user = await ctx.em.findOne(User, { id: ctx.req.session.userId });
+    return user;
+  }
+
   @Mutation(() => UserResponse)
   async register(
     @Arg("options") options: UsernamePasswordInput,
@@ -49,7 +60,7 @@ export class UserResolver {
       return {
         errors: [
           {
-            field: "password",
+            field: "username",
             message: "length must be greater than 2",
           },
         ],
@@ -60,7 +71,7 @@ export class UserResolver {
       return {
         errors: [
           {
-            field: "username",
+            field: "password",
             message: "length must be greater than 3",
           },
         ],
@@ -68,12 +79,19 @@ export class UserResolver {
     }
 
     const hashedPassword = await argon2.hash(options.password);
-    const user = ctx.em.create(User, {
-      username: options.username,
-      password: hashedPassword,
-    });
+    // const user = ctx.em.create(User, {
+    //   username: options.username,
+    //   password: hashedPassword,
+    // });
+    let user;
     try {
-      await ctx.em.persistAndFlush(user);
+      const result = await (ctx.em as EntityManager).createQueryBuilder(User).getKnexQuery().insert({
+        username: options.username,
+        password: hashedPassword,
+        created_at: new Date(),
+        updated_at: new Date(),
+      }).returning("*")
+      user = result[0];
     } catch (err) {
       if (err.code === "23505" || err.detail.includes("already exists")) {
         return {
@@ -122,6 +140,9 @@ export class UserResolver {
       };
     }
 
+    //store user id session
+    //this will set a cookie on the user
+    //keep user logged in
     ctx.req.session!.userId = user.id;
 
     return {

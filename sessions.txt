@@ -1,0 +1,24 @@
+ctx.req.session.userId = user.id;
+#storing data into session
+
+{userId: 1} --> send that to redis
+
+#Redis is a key value store
+1
+Store in redis
+sess: kshfwfiuewuifgewi --> { userId:1 }
+
+2
+express-session will set a cookie on my browser, signed version of the key -> (iufgiuwgfegfiewgifewef) sent to browser
+
+3
+when user makes a request
+iufgiuwgfegfiewgifewef -> sent to the server
+
+4
+decrypt the cookie with seceret set in the config and turn the message
+iufgiuwgfegfiewgifewef -> sess: kshfwfiuewuifgewi
+
+5 
+make a request to redis, looks up key and get data
+sess: kshfwfiuewuifgewi --> { userId:1 }

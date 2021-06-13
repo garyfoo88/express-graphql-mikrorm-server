@@ -68,13 +68,22 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolver = class UserResolver {
+    me(ctx) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!ctx.req.session.userId) {
+                return null;
+            }
+            const user = yield ctx.em.findOne(User_1.User, { id: ctx.req.session.userId });
+            return user;
+        });
+    }
     register(options, ctx) {
         return __awaiter(this, void 0, void 0, function* () {
             if (options.username.length <= 2) {
                 return {
                     errors: [
                         {
-                            field: "password",
+                            field: "username",
                             message: "length must be greater than 2",
                         },
                     ],
@@ -84,19 +93,22 @@ let UserResolver = class UserResolver {
                 return {
                     errors: [
                         {
-                            field: "username",
+                            field: "password",
                             message: "length must be greater than 3",
                         },
                     ],
                 };
             }
             const hashedPassword = yield argon2_1.default.hash(options.password);
-            const user = ctx.em.create(User_1.User, {
-                username: options.username,
-                password: hashedPassword,
-            });
+            let user;
             try {
-                yield ctx.em.persistAndFlush(user);
+                const result = yield ctx.em.createQueryBuilder(User_1.User).getKnexQuery().insert({
+                    username: options.username,
+                    password: hashedPassword,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                }).returning("*");
+                user = result[0];
             }
             catch (err) {
                 if (err.code === "23505" || err.detail.includes("already exists")) {
@@ -146,6 +158,13 @@ let UserResolver = class UserResolver {
         });
     }
 };
+__decorate([
+    type_graphql_1.Query(() => User_1.User, { nullable: true }),
+    __param(0, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserResolver.prototype, "me", null);
 __decorate([
     type_graphql_1.Mutation(() => UserResponse),
     __param(0, type_graphql_1.Arg("options")),
